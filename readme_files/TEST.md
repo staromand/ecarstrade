@@ -14,6 +14,9 @@ This table is used to link with the ad-table through a "one-to-many" relationshi
 
 If IDE was configured to connect to the project database before, you can further explore the schema in the database manager
 
+### Data
+After the import command is executed, the tables will be populated with data of the three entities described above.
+
 ### About indexes
 Only the indexes necessary for the task were used in the project. The examinee understands that additional indexes
 may be required for some queries in a real project

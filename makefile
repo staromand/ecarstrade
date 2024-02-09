@@ -6,7 +6,7 @@ compose=docker-compose -f docker-compose.yml
 .DEFAULT_GOAL := build
 
 .PHONY: init
-init: build start composer import-cars
+init: build start composer
 
 .PHONY: build
 build:

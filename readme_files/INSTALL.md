@@ -25,9 +25,19 @@ The project can be easily built and launched with the command
    ```bash
    make init
    ```
-This command will deploy the containers, create the database schema, download project dependencies,
-and perform the initial car ads import required for task verification
+This command will deploy the containers, create the database schema, and download project dependencies
 
+To perform the initial car ads import required for task verification, please run the command:
+   ```bash
+   make import-cars
+   ```
+Now you can proceed to [the next section](./TEST.md) 
+
+### Shutting down the Project
+The project can be stopped with all the containers through:
+   ```bash
+   make down
+   ```
 ___
 
 [< Back to Table of Contents](../README.md)
