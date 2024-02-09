@@ -1,0 +1,22 @@
+#!/usr/bin/env php
+<?php
+
+use App\Infrastructure\Database\Connection;
+use App\Service\ReportService;
+use App\Strategy\Report\AvgMileage;
+use App\Strategy\Report\DistinctFuel;
+use App\Strategy\Report\DistinctGearbox;
+use App\Strategy\Report\MaxMinHp;
+use App\Strategy\Report\Top3Countries;
+
+require_once __DIR__ . '/../kernel.php';
+
+$reportService = new ReportService(Connection::get());
+
+$reportService->runReports(
+    new AvgMileage(),
+    new Top3Countries(),
+    new MaxMinHp(),
+    new DistinctGearbox(),
+    new DistinctFuel()
+);

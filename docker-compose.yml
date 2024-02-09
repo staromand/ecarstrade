@@ -1,0 +1,21 @@
+version: '3.7'
+
+services:
+  php-fpm:
+    build:
+      context: docker/images/php
+    volumes:
+      - ./var/www:/var/www
+      - ./docker/data/php-fpm/www.conf:/usr/local/etc/php-fpm.d/www.conf
+    environment:
+      PHP_IDE_CONFIG: serverName=ecarstrade-php-fpm
+
+  mysql:
+    image: mysql:8
+    env_file:
+      - ./var/www/.env
+    volumes:
+      - ./docker/data/mysql/data:/var/lib/mysql
+      - ./docker/data/mysql/entrypoint-initdb:/docker-entrypoint-initdb.d
+    ports:
+      - 3396:3306

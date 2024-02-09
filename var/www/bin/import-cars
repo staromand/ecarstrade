@@ -1,0 +1,155 @@
+#!/usr/bin/env php
+<?php
+
+use App\Infrastructure\Database\Connection;
+use App\Service\AdParserService;
+use App\Service\CarFetcherService;
+use App\Utils\Console;
+use App\Utils\ImportNormalizer;
+
+require_once __DIR__ . '/../kernel.php';
+
+$fetcher = new CarFetcherService();
+$parser = new AdParserService();
+
+Console::writeOut('Cars are loading...');
+
+$data = [];
+$pagesToLoad = 3;
+$currentPage = 1;
+while($currentPage <= $pagesToLoad) {
+    try {
+        Console::writeOut(sprintf('Page %u is fetching...', $currentPage));
+        
+        foreach ($fetcher->getCars($currentPage++) as $id => $item) {
+            $data[$id] = $item;
+        }
+    } catch (\Throwable $e) {
+        Console::writeOut($e->getMessage());
+    }
+}
+Console::writeOut(sprintf('Success! %u cars have been loaded', count($data)));
+
+Console::writeOut('Parsing html...');
+
+$ads = [];
+$models = [];
+$modifications = [];
+foreach ($data as $id => $item) {
+    if (!$decoded64 = base64_decode($item['result'])) {
+        Console::writeOut(sprintf('An error occurred while trying to decode item #%u', $id));
+    }
+    
+    $itemInfo = $parser->parse($decoded64);
+    
+    $models[$itemInfo['model_title']] = [
+        'title' => $itemInfo['model_title']
+    ];
+    
+    $modificationParams = [
+        'model' => &$models[$itemInfo['model_title']],
+        'gearbox' => ImportNormalizer::normalizeEnum('modification_gearbox', $itemInfo['modification_gearbox']),
+        'fuel' => ImportNormalizer::normalizeEnum('modification_fuel', $itemInfo['modification_fuel']),
+        'engine_size' => $itemInfo['modification_engine_size'],
+        'origin_country' => ImportNormalizer::normalizeEnum('modification_origin_country', $itemInfo['modification_origin_country']),
+        'power' => ImportNormalizer::convertValue('modification_power', $itemInfo['modification_power']),
+        'emission_class' => $itemInfo['modification_emission_class'],
+        'co2_value' => $itemInfo['modification_co2_value'],
+    ];
+    
+    $modificationParams['code'] = ImportNormalizer::generateModificationCode($modificationParams);
+    $modifications[$modificationParams['code']] = $modificationParams;
+    
+    $ads[$itemInfo['car_ad_id']] = [
+        'modification' => &$modifications[$modificationParams['code']],
+        'title' => $itemInfo['car_ad_title'],
+        'registered_at' => ImportNormalizer::convertValue('car_ad_registered_at', $itemInfo['car_ad_registered_at']),
+        'mileage' => ImportNormalizer::convertValue('car_ad_mileage', $itemInfo['car_ad_mileage']),
+    ];
+}
+$e = 4;
+
+$pdo = Connection::get();
+$modelEntityMap = [];
+$modEntityMap = [];
+
+$pdo->beginTransaction();
+try {
+    $stmt = $pdo->prepare('INSERT INTO model (title) VALUES (:title)');
+    foreach ($models as $modelTitle => $item) {
+        if ($stmt->execute(['title' => $modelTitle]) === false) {
+            Console::writeOut(sprintf('An error occurred while inserting "%s" car model', $modelTitle));
+            continue;
+        }
+        
+        $modelEntityMap[$modelTitle] = $pdo->lastInsertId();
+    }
+    Console::writeOut(sprintf('%u car models have inserted', count($modelEntityMap)));
+    
+    $stmt = $pdo->prepare(
+    'INSERT INTO modification (
+              code, model_id, gearbox, fuel, engine_size, origin_country, power, emission_class, co2_value
+          ) VALUES (
+              :code, :model_id, :gearbox, :fuel, :engine_size, :origin_country, :power, :emission_class, :co2_value
+          )'
+    );
+    foreach ($modifications as $mod) {
+        $row = [
+            'code' => $mod['code'],
+            'model_id' => (
+                    $modelEntityMap[$mod['model']['title']] ?? throw new \ValueError(
+                            sprintf('Model "%s" does not exist in database', $mod['model']['title'])
+                    )
+            ),
+            'gearbox' => $mod['gearbox'],
+            'fuel' => $mod['fuel'],
+            'engine_size' => $mod['engine_size'] ?? 0,
+            'origin_country' => $mod['origin_country'],
+            'power' => $mod['power'],
+            'emission_class' => $mod['emission_class'],
+            'co2_value' => $mod['co2_value'] ?? 0,
+
+        ];
+    
+        if ($stmt->execute($row) === false) {
+            Console::writeOut(sprintf('An error occurred while inserting "%s" car modification', $mod['code']));
+            continue;
+        }
+    
+        $modEntityMap[$mod['code']] = $pdo->lastInsertId();
+    }
+    Console::writeOut(sprintf('%u car modifications have inserted', count($modEntityMap)));
+    
+    $stmt = $pdo->prepare(
+    'INSERT INTO car_ad (
+              title, registered_at, mileage, modification_code
+          ) VALUES (
+              :title, :registered_at, :mileage, :modification_code
+          )'
+    );
+    $counter = 0;
+    foreach ($ads as $ad) {
+        $row = [
+            'title' => $ad['title'],
+            'registered_at' => $ad['registered_at'],
+            'mileage' => $ad['mileage'] ?? 0,
+            'modification_code' => $ad['modification']['code'],
+        ];
+    
+        if ($stmt->execute($row) === false) {
+            Console::writeOut(sprintf('An error occurred while inserting ad "%s"', $ad['title']));
+            continue;
+        }
+    
+        $counter++;
+    }
+    
+} catch (\Throwable $e) {
+    Console::writeOut($e->getMessage());
+    $pdo->rollBack();
+    exit;
+}
+
+$pdo->commit();
+
+Console::writeOut(sprintf('Success! %u ads have been imported into database', $counter));
