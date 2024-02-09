@@ -13,8 +13,12 @@ Contact Information:
 [![Linkedin](./readme_files/l.png) **LinkedIn**](https://www.linkedin.com/in/youcaughtme)
 
 
-## Table of Contents
+### Table of Contents for part #2
 
 - [Debugging setup](./readme_files/DEBUG.md) (optional)
 - [Installation and project launch](./readme_files/INSTALL.md)
 - [Checking the test assignment](./readme_files/TEST.md)
+
+### Other parts
+
+- [Answers to the 1st and 3rd parts](./readme_files/ANSWERS.md)
